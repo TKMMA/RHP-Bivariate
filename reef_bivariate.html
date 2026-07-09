@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Fish here / Restore there — RHP bivariate</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<style>
+  :root{
+    --sea:#0a1c26; --sea-2:#0e2632; --plate:#102e3b; --plate-2:#0c242f;
+    --ink:#e8f1f2; --muted:#84a3ae; --faint:#5b7b86; --line:#23414e; --line-2:#2f5462;
+    --cyan:#4cc3d0;
+    /* bivariate corners tuned to read on dark */
+    --ll:#3a545f;   /* low use / low demand  — low signal   */
+    --hl:#43c9bf;   /* high use / low demand  — still producing (teal) */
+    --lh:#d364ad;   /* low use / high demand  — bring it back (magenta) */
+    --hh:#8f86ea;   /* high use / high demand — fix my grounds (indigo blend) */
+    --nodata:#16272f;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{
+    background:var(--sea); color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased; overflow:hidden;
+  }
+  #app{position:fixed; inset:0; display:flex}
+  #map{flex:1 1 auto; background:var(--sea)}
+  .leaflet-container{background:var(--sea); font-family:inherit}
+  .leaflet-bar a, .leaflet-control-zoom a{background:var(--plate); color:var(--ink); border-color:var(--line)}
+  .leaflet-bar a:hover{background:var(--plate-2)}
+
+  /* ---- instrument panel ---- */
+  #panel{
+    flex:0 0 340px; max-width:88vw; height:100%; overflow-y:auto;
+    background:linear-gradient(180deg,var(--plate) 0%, var(--plate-2) 100%);
+    border-right:1px solid var(--line-2);
+    padding:20px 20px 40px; display:flex; flex-direction:column; gap:18px;
+  }
+  .eyebrow{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    font-size:10.5px; letter-spacing:.22em; text-transform:uppercase; color:var(--cyan)}
+  h1{font-size:20px; line-height:1.15; margin:6px 0 2px; letter-spacing:-.01em; font-weight:650}
+  .sub{color:var(--muted); font-size:12.5px; line-height:1.45}
+  .rule{height:1px; background:var(--line); margin:2px 0}
+
+  .mono{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+  .lab{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--faint)}
+
+  /* controls */
+  .ctl{display:flex; flex-direction:column; gap:8px}
+  .seg{display:flex; border:1px solid var(--line-2); border-radius:7px; overflow:hidden}
+  .seg button{
+    flex:1; appearance:none; border:0; background:transparent; color:var(--muted);
+    padding:8px 6px; font-size:12px; cursor:pointer; font-family:inherit; letter-spacing:.01em;
+    border-right:1px solid var(--line);
+  }
+  .seg button:last-child{border-right:0}
+  .seg button[aria-pressed="true"]{background:var(--cyan); color:#04222a; font-weight:650}
+  select{
+    width:100%; background:var(--plate-2); color:var(--ink); border:1px solid var(--line-2);
+    border-radius:7px; padding:8px 10px; font-size:12.5px; font-family:inherit;
+  }
+  .switch{display:flex; align-items:center; gap:9px; cursor:pointer; user-select:none; font-size:12.5px; color:var(--ink)}
+  .switch input{appearance:none; width:34px; height:19px; background:var(--line-2); border-radius:20px; position:relative; cursor:pointer; transition:background .15s; flex:0 0 auto}
+  .switch input:checked{background:var(--cyan)}
+  .switch input::after{content:""; position:absolute; top:2px; left:2px; width:15px; height:15px; border-radius:50%; background:#e8f1f2; transition:transform .15s}
+  .switch input:checked::after{transform:translateX(15px)}
+
+  /* bivariate plate legend */
+  .plate{border:1px solid var(--line-2); border-radius:9px; padding:14px; background:rgba(6,20,26,.35)}
+  .matrix-wrap{display:grid; grid-template-columns:16px 1fr; grid-template-rows:1fr 16px; gap:6px; align-items:center}
+  .yaxis{writing-mode:vertical-rl; transform:rotate(180deg); text-align:center}
+  .matrix{display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; gap:4px; aspect-ratio:1/1}
+  .xaxis{grid-column:2; text-align:center}
+  .cell{border-radius:5px; padding:7px 6px; min-height:52px; display:flex; flex-direction:column; justify-content:space-between; cursor:default; position:relative; outline:2px solid transparent; outline-offset:1px; transition:outline-color .1s}
+  .cell .nm{font-size:10.5px; line-height:1.15; font-weight:650; color:#08222a}
+  .cell .ct{font-size:10px; align-self:flex-end}
+  .cell.hh{background:var(--hh)} .cell.hl{background:var(--hl)}
+  .cell.lh{background:var(--lh)} .cell.ll{background:var(--ll)}
+  .cell.hh .ct,.cell.hl .ct,.cell.lh .ct,.cell.ll .ct{color:#06202880}
+  .cell.active{outline-color:#fff}
+  .axhint{font-size:9.5px; color:var(--faint); display:flex; justify-content:space-between}
+
+  /* readout */
+  .readout{border:1px solid var(--line-2); border-radius:9px; padding:13px 14px; background:rgba(6,20,26,.35); min-height:118px}
+  .ro-name{font-size:15px; font-weight:650; letter-spacing:-.01em; display:flex; align-items:center; gap:8px}
+  .chip{width:11px; height:11px; border-radius:3px; flex:0 0 auto; box-shadow:0 0 0 1px #ffffff22 inset}
+  .ro-isl{color:var(--muted); font-size:11.5px; margin-top:1px}
+  .ro-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:11px}
+  .stat{background:var(--plate-2); border:1px solid var(--line); border-radius:7px; padding:8px 9px}
+  .stat .n{font-size:20px; font-weight:650; letter-spacing:-.02em; line-height:1}
+  .stat .k{font-size:9.5px; letter-spacing:.13em; text-transform:uppercase; color:var(--faint); margin-top:4px}
+  .ro-strat{margin-top:10px; font-size:12px; color:var(--muted); line-height:1.4}
+  .ro-empty{color:var(--faint); font-size:12.5px; padding-top:24px; text-align:center; line-height:1.5}
+
+  /* summary strip */
+  .sumrow{display:flex; gap:10px}
+  .sumrow .stat{flex:1; text-align:left}
+
+  .foot{font-size:11px; color:var(--faint); line-height:1.5}
+  .foot b{color:var(--muted); font-weight:600}
+  a{color:var(--cyan)}
+
+  /* overlays */
+  #status{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; z-index:1200}
+  .card{background:var(--plate); border:1px solid var(--line-2); border-radius:12px; padding:20px 24px; max-width:420px; pointer-events:auto; box-shadow:0 18px 50px #00000060}
+  .card .lab{margin-bottom:8px}
+  .card h2{margin:2px 0 8px; font-size:16px}
+  .card p{margin:0; color:var(--muted); font-size:13px; line-height:1.55}
+  .spinner{width:26px;height:26px;border-radius:50%;border:3px solid var(--line-2);border-top-color:var(--cyan);animation:spin .8s linear infinite;margin:0 auto 14px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .leaflet-tooltip.moku-tip{background:var(--plate); border:1px solid var(--line-2); color:var(--ink);
+    font-family:ui-monospace,Menlo,monospace; font-size:11px; box-shadow:0 6px 20px #00000050; border-radius:6px; padding:5px 8px}
+  .leaflet-tooltip.moku-tip::before{display:none}
+
+  @media (max-width:640px){
+    #app{flex-direction:column-reverse}
+    #panel{flex:0 0 auto; max-width:100%; height:52%; border-right:0; border-top:1px solid var(--line-2)}
+    #map{height:48%}
+  }
+  @media (prefers-reduced-motion:reduce){ *{transition:none!important; animation:none!important} }
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="panel">
+    <div>
+      <div class="eyebrow">DAR · Reef Habitat Program</div>
+      <h1>Fish here / Restore there</h1>
+      <div class="sub">Each moku compared on two survey questions — where fishers <em>fish</em> and where they want <em>restoration</em> — to find where an artificial reef has both users and demand.</div>
+    </div>
+
+    <div class="ctl">
+      <div class="lab">Respondents counted</div>
+      <div class="seg" id="segSet" role="group" aria-label="Respondent set">
+        <button data-set="all" aria-pressed="true">Everyone</button>
+        <button data-set="ar" aria-pressed="false">AR believers only</button>
+      </div>
+      <select id="selFilter" aria-label="Additional filter">
+        <option value="all">All gear &amp; frequency</option>
+        <option value="spear">Spearfishers (most often)</option>
+        <option value="freq">Fish &gt; 5×/month</option>
+        <option value="comm">Commercial or mixed</option>
+      </select>
+      <label class="switch"><input type="checkbox" id="chkFlows"><span>Show demand exported to another moku</span></label>
+    </div>
+
+    <div class="plate">
+      <div class="lab" style="margin-bottom:10px">The four sitings</div>
+      <div class="matrix-wrap">
+        <div class="yaxis lab" style="grid-row:1">Restoration demand →</div>
+        <div class="matrix" style="grid-row:1; grid-column:2">
+          <div class="cell lh" data-q="lh"><span class="nm">Bring it&nbsp;back</span><span class="ct" data-ct="lh">0</span></div>
+          <div class="cell hh" data-q="hh"><span class="nm">Fix my&nbsp;grounds</span><span class="ct" data-ct="hh">0</span></div>
+          <div class="cell ll" data-q="ll"><span class="nm">Low&nbsp;signal</span><span class="ct" data-ct="ll">0</span></div>
+          <div class="cell hl" data-q="hl"><span class="nm">Still&nbsp;producing</span><span class="ct" data-ct="hl">0</span></div>
+        </div>
+        <div class="xaxis lab" style="grid-column:2">Fishing use →</div>
+      </div>
+      <div class="axhint" style="margin-top:9px">
+        <span id="thrLo">low</span><span id="thrHi">high</span>
+      </div>
+    </div>
+
+    <div class="readout" id="readout">
+      <div class="ro-empty" id="roEmpty">Hover a moku to read its position on the plate.</div>
+      <div id="roBody" style="display:none">
+        <div class="ro-name"><span class="chip" id="roChip"></span><span id="roName">—</span></div>
+        <div class="ro-isl" id="roIsl">—</div>
+        <div class="ro-grid">
+          <div class="stat"><div class="n" id="roF">0</div><div class="k">Fish here</div></div>
+          <div class="stat"><div class="n" id="roR">0</div><div class="k">Want restoration</div></div>
+        </div>
+        <div class="ro-strat" id="roStrat">—</div>
+      </div>
+    </div>
+
+    <div class="sumrow">
+      <div class="stat"><div class="n mono" id="sN">—</div><div class="k">Respondents</div></div>
+      <div class="stat"><div class="n mono" id="sLoop">—</div><div class="k">Fish &amp; fix same moku</div></div>
+    </div>
+
+    <div class="rule"></div>
+    <div class="foot" id="foot">
+      Colour = strategy, from the 2×2 above. <b>Counts, not shares</b> — with a small survey the raw number of voices is the honest signal, so grey moku simply weren't named. Split at each axis' median of named moku. Live from the RHP Survey123 &amp; moku layers.
+    </div>
+  </aside>
+  <div id="map"></div>
+</div>
+
+<div id="status">
+  <div class="card" id="statusCard">
+    <div class="spinner"></div>
+    <div class="lab">Loading</div>
+    <h2 id="stTitle">Querying the FeatureServers…</h2>
+    <p id="stMsg">Pulling moku boundaries and every survey response, then tallying by moku.</p>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  var MOKU_URL = "https://services.arcgis.com/HQ0xoN0EzDPBOEci/ArcGIS/rest/services/Moku%20with%20population%20and%20point%20count/FeatureServer/0/query";
+  var SURVEY_URL = "https://services.arcgis.com/HQ0xoN0EzDPBOEci/ArcGIS/rest/services/RHP_SURVEY_-_View_layer_-_no_emails/FeatureServer/0/query";
+
+  var FISH="MOKUSELECTED_where_do_you_fish",
+      FISH2="MOKUSELECTED_NO_Restoration",
+      RESTR="MOKUSELECTED_where_do_you_restr",
+      AR="Artificialreefs";
+
+  var state = {
+    mokuGeo:null, records:[], set:"all", filter:"all", flows:false,
+    byKey:{}, medF:Infinity, medR:Infinity, keyCentroid:{}, layer:null, flowLayer:null, activeQ:null
+  };
+
+  // ---------- data loading with pagination ----------
+  function q(url, params){
+    var u = url + "?" + Object.keys(params).map(function(k){return k+"="+encodeURIComponent(params[k]);}).join("&");
+    return fetch(u).then(function(r){ if(!r.ok) throw new Error("HTTP "+r.status+" from "+ (url.indexOf("SURVEY")>-1?"survey":"moku")); return r.json(); });
+  }
+  function pageAll(url, base, isGeo){
+    var out=[], offset=0, page=1000;
+    function next(){
+      var p=Object.assign({}, base, {resultOffset:offset, resultRecordCount:page});
+      return q(url,p).then(function(j){
+        if(j.error) throw new Error(j.error.message||"ArcGIS error");
+        var feats = j.features||[];
+        out = out.concat(feats);
+        var more = j.exceededTransferLimit || feats.length===page;
+        if(more && feats.length>0){ offset+=page; return next(); }
+        return out;
+      });
+    }
+    return next();
+  }
+
+  function load(){
+    var mokuP = pageAll(MOKU_URL, {where:"1=1", outFields:"MO_IS,MOKU,ISLAND,sum_TOTPOP_CY,sum_MP31203a_B,sum_MP33011a_B",
+        outSR:4326, f:"geojson", maxAllowableOffset:0.0003, returnGeometry:true}, true);
+    var survP = pageAll(SURVEY_URL, {where:"1=1",
+        outFields:[FISH,FISH2,RESTR,AR,"how_often_are_you_fishing","Spearfishing","Commercial_or_non"].join(","),
+        returnGeometry:false, f:"json"}, false);
+
+    return Promise.all([mokuP, survP]).then(function(res){
+      state.mokuGeo = {type:"FeatureCollection", features:res[0]};
+      state.records = res[1].map(function(f){return f.attributes;});
+    });
+  }
+
+  // ---------- filtering / tally ----------
+  function passes(a){
+    if(state.set==="ar" && a[AR]!=="Most effective") return false;
+    switch(state.filter){
+      case "spear": return a.Spearfishing==="Most often";
+      case "freq":  return String(a.how_often_are_you_fishing)==="4";
+      case "comm":  return a.Commercial_or_non && a.Commercial_or_non!=="Non-commercially";
+      default: return true;
+    }
+  }
+  function norm(s){ return s==null ? null : String(s).trim(); }
+
+  function compute(){
+    var by={};
+    function bump(key,field){ if(!key) return; (by[key]=by[key]||{F:0,R:0,Rar:0})[field]++; }
+    var both=0, loop=0, n=0;
+    state.records.forEach(function(a){
+      if(!passes(a)) return;
+      n++;
+      var fish = norm(a[FISH]) || norm(a[FISH2]);
+      var restr = norm(a[RESTR]);
+      if(fish) bump(fish,"F");
+      if(restr){ bump(restr,"R"); if(a[AR]==="Most effective"){ (by[restr]=by[restr]||{F:0,R:0,Rar:0}).Rar++; } }
+      if(fish && restr){ both++; if(fish===restr) loop++; }
+    });
+    // medians of positive values, per axis
+    function medPos(sel){
+      var v=[]; for(var k in by){ if(by[k][sel]>0) v.push(by[k][sel]); }
+      v.sort(function(a,b){return a-b;}); if(!v.length) return Infinity;
+      var m=Math.floor(v.length/2); return v.length%2? v[m] : (v[m-1]+v[m])/2;
+    }
+    state.byKey=by; state.medF=medPos("F"); state.medR=medPos("R");
+    state._n=n; state._both=both; state._loop=loop;
+  }
+
+  function quad(F,R){
+    if((F||0)===0 && (R||0)===0) return "nodata";
+    var hiF = F>=state.medF, hiR = R>=state.medR;
+    if(hiF&&hiR) return "hh"; if(!hiF&&hiR) return "lh";
+    if(hiF&&!hiR) return "hl"; return "ll";
+  }
+  var QCOL={hh:cssv("--hh"),hl:cssv("--hl"),lh:cssv("--lh"),ll:cssv("--ll"),nodata:cssv("--nodata")};
+  var QNAME={hh:"Fix my grounds",hl:"Still producing",lh:"Bring it back",ll:"Low signal",nodata:"Not named in survey"};
+  var QDESC={
+    hh:"Heavily fished and heavily asked-for — the users and the askers are the same people. Strongest constituency for an AR here.",
+    hl:"Fished hard but little restoration demand. Reads as 'still producing' — hold loosely; low demand in prime grounds can be access-anxiety, not health.",
+    lh:"Little fishing but real restoration demand — a rebuild play. Success looks like habitat recovery, not catch rates.",
+    ll:"Named by a few, but weakly on both. Check against sampling before concluding anything.",
+    nodata:"No respondent named this moku for fishing or restoration. Likely an outreach gap, not a verdict."
+  };
+  function cssv(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+
+  // ---------- map ----------
+  var map;
+  function initMap(){
+    map = L.map("map",{zoomControl:true, attributionControl:false, minZoom:6, maxZoom:12, preferCanvas:true});
+    map.setView([20.6,-157.4],7);
+    L.control.attribution({prefix:false, position:"bottomright"})
+      .addAttribution("moku + RHP Survey123 · services.arcgis.com").addTo(map);
+  }
+
+  function styleFor(feat){
+    var k = norm(feat.properties.MO_IS); var d = state.byKey[k]||{F:0,R:0};
+    var Q = quad(d.F,d.R);
+    return {color:"#0b2129", weight:0.7, fillColor:QCOL[Q], fillOpacity: Q==="nodata"?0.12:0.82};
+  }
+
+  function draw(){
+    if(state.layer) map.removeLayer(state.layer);
+    state.keyCentroid={};
+    state.layer = L.geoJSON(state.mokuGeo,{
+      style:styleFor,
+      onEachFeature:function(feat,layer){
+        var k=norm(feat.properties.MO_IS);
+        try{ state.keyCentroid[k]=layer.getBounds().getCenter(); }catch(e){}
+        var d=state.byKey[k]||{F:0,R:0};
+        layer.bindTooltip(feat.properties.MOKU+" · F"+(d.F||0)+" / R"+(d.R||0), {className:"moku-tip",sticky:true});
+        layer.on("mouseover",function(){ layer.setStyle({weight:2,color:"#eaf6f8"}); layer.bringToFront(); showReadout(feat); });
+        layer.on("mouseout",function(){ state.layer.resetStyle(layer); hideReadout(); });
+      }
+    }).addTo(map);
+    try{ map.fitBounds(state.layer.getBounds(),{padding:[24,24]}); }catch(e){}
+    drawFlows();
+  }
+
+  // gentle curved arrow between two latlngs
+  function curve(from,to){
+    var lat1=from.lat,lng1=from.lng,lat2=to.lat,lng2=to.lng;
+    var mx=(lat1+lat2)/2, my=(lng1+lng2)/2;
+    var dx=lat2-lat1, dy=lng2-lng1;
+    var off=0.16; var cx=mx - dy*off, cy=my + dx*off; // perpendicular control point
+    var pts=[],N=18;
+    for(var i=0;i<=N;i++){var t=i/N;var a=(1-t)*(1-t),b=2*(1-t)*t,c=t*t;
+      pts.push([a*lat1+b*cx+c*lat2, a*lng1+b*cy+c*lng2]);}
+    return pts;
+  }
+  function drawFlows(){
+    if(state.flowLayer){ map.removeLayer(state.flowLayer); state.flowLayer=null; }
+    if(!state.flows) return;
+    // aggregate exports fish->restr (different moku)
+    var agg={};
+    state.records.forEach(function(a){
+      if(!passes(a)) return;
+      var f=norm(a[FISH])||norm(a[FISH2]), r=norm(a[RESTR]);
+      if(!f||!r||f===r) return;
+      var key=f+"||"+r; agg[key]=(agg[key]||0)+1;
+    });
+    var rows=Object.keys(agg).map(function(k){var p=k.split("||");return {f:p[0],t:p[1],n:agg[k]};})
+      .sort(function(a,b){return b.n-a.n;}).slice(0,8);
+    var g=L.layerGroup();
+    rows.forEach(function(row){
+      var A=state.keyCentroid[row.f], B=state.keyCentroid[row.t]; if(!A||!B) return;
+      var pts=curve(A,B);
+      L.polyline(pts,{color:cssv("--cyan"),weight:Math.min(1+row.n*1.1,6),opacity:0.75,lineCap:"round"}).addTo(g);
+      // arrowhead
+      var p1=pts[pts.length-2],p2=pts[pts.length-1];
+      var ang=Math.atan2(p2[0]-p1[0], p2[1]-p1[1])*180/Math.PI;
+      var ico=L.divIcon({className:"",iconSize:[14,14],iconAnchor:[7,7],
+        html:'<div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:11px solid '+cssv("--cyan")+';transform:rotate('+(-ang+90)+'deg);opacity:.9"></div>'});
+      L.marker([p2[0],p2[1]],{icon:ico,interactive:false}).addTo(g);
+    });
+    state.flowLayer=g.addTo(map);
+  }
+
+  // ---------- readout + legend ----------
+  function showReadout(feat){
+    var k=norm(feat.properties.MO_IS); var d=state.byKey[k]||{F:0,R:0,Rar:0};
+    var Q=quad(d.F,d.R);
+    document.getElementById("roEmpty").style.display="none";
+    document.getElementById("roBody").style.display="block";
+    document.getElementById("roChip").style.background=QCOL[Q];
+    document.getElementById("roName").textContent=feat.properties.MOKU;
+    document.getElementById("roIsl").textContent=feat.properties.ISLAND+" · "+QNAME[Q];
+    document.getElementById("roF").textContent=d.F||0;
+    var rtxt=(d.R||0); if(d.Rar){ rtxt += "  ("+d.Rar+" AR)"; }
+    document.getElementById("roR").innerHTML=rtxt;
+    document.getElementById("roStrat").textContent=QDESC[Q];
+    setActiveCell(Q);
+  }
+  function hideReadout(){
+    document.getElementById("roEmpty").style.display="block";
+    document.getElementById("roBody").style.display="none";
+    setActiveCell(null);
+  }
+  function setActiveCell(Q){
+    document.querySelectorAll(".cell").forEach(function(c){ c.classList.toggle("active", Q && c.getAttribute("data-q")===Q); });
+  }
+
+  function refreshLegend(){
+    var counts={hh:0,hl:0,lh:0,ll:0,nodata:0};
+    (state.mokuGeo.features||[]).forEach(function(f){
+      var d=state.byKey[norm(f.properties.MO_IS)]||{F:0,R:0}; counts[quad(d.F,d.R)]++;
+    });
+    ["hh","hl","lh","ll"].forEach(function(qk){ var el=document.querySelector('[data-ct="'+qk+'"]'); if(el) el.textContent=counts[qk]; });
+    var fT = state.medF===Infinity?"—":("≥"+fmt(state.medF)); 
+    var rT = state.medR===Infinity?"—":("≥"+fmt(state.medR));
+    document.getElementById("thrLo").textContent = "named ≥1";
+    document.getElementById("thrHi").textContent = "high: use "+fT+" · demand "+rT;
+    document.getElementById("sN").textContent = state._n;
+    document.getElementById("sLoop").textContent = state._both? Math.round(100*state._loop/state._both)+"%" : "—";
+  }
+  function fmt(x){ return (x%1===0)? x : x.toFixed(1); }
+
+  // ---------- recompute pipeline ----------
+  function rerun(){ compute(); if(state.layer){ draw(); } refreshLegend(); }
+
+  // ---------- controls ----------
+  function wire(){
+    document.getElementById("segSet").addEventListener("click",function(e){
+      var b=e.target.closest("button"); if(!b) return;
+      state.set=b.getAttribute("data-set");
+      this.querySelectorAll("button").forEach(function(x){x.setAttribute("aria-pressed", x===b);});
+      rerun();
+    });
+    document.getElementById("selFilter").addEventListener("change",function(){ state.filter=this.value; rerun(); });
+    document.getElementById("chkFlows").addEventListener("change",function(){ state.flows=this.checked; drawFlows(); });
+    // hovering a legend cell highlights matching moku on the map
+    document.querySelectorAll(".cell").forEach(function(c){
+      c.addEventListener("mouseenter",function(){
+        var Q=c.getAttribute("data-q"); setActiveCell(Q);
+        if(!state.layer) return;
+        state.layer.eachLayer(function(l){
+          var d=state.byKey[norm(l.feature.properties.MO_IS)]||{F:0,R:0};
+          if(quad(d.F,d.R)===Q) l.setStyle({weight:2.2,color:"#ffffff"}); else l.setStyle({weight:0.7,color:"#0b2129"});
+        });
+      });
+      c.addEventListener("mouseleave",function(){ setActiveCell(null); if(state.layer) state.layer.eachLayer(function(l){state.layer.resetStyle(l);}); });
+    });
+  }
+
+  // ---------- boot ----------
+  function fail(msg){
+    document.getElementById("statusCard").innerHTML =
+      '<div class="lab">Couldn\'t load</div><h2>The map data didn\'t come back.</h2>'+
+      '<p>'+msg+'<br><br>These layers are queried live from ArcGIS Online. If you\'re offline, or the service is private/rate-limited, the tallies can\'t be built. Try again, or open the two query URLs directly to confirm they return JSON.</p>';
+  }
+
+  initMap(); wire();
+  load().then(function(){
+    if(!state.mokuGeo.features.length) throw new Error("Moku layer returned no polygons.");
+    compute(); draw(); refreshLegend();
+    document.getElementById("status").style.display="none";
+  }).catch(function(err){ fail(String(err.message||err)); });
+
+})();
+</script>
+</body>
+</html>
