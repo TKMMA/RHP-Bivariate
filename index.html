@@ -114,6 +114,21 @@
   .leaflet-tooltip.moku-tip{background:var(--plate); border:1px solid var(--line-2); color:var(--ink);
     font-family:ui-monospace,Menlo,monospace; font-size:11px; box-shadow:0 6px 20px #00000050; border-radius:6px; padding:5px 8px}
   .leaflet-tooltip.moku-tip::before{display:none}
+  .leaflet-tooltip.moku-tip b{color:var(--ink); font-weight:650}
+  .leaflet-tooltip.moku-tip .tdim{color:var(--faint)}
+
+  /* export-flow arrows */
+  .flow-badge{background:none!important; border:0!important}
+  .flow-badge .fb{display:inline-block; transform:translate(-50%,-50%);
+    font:650 10px ui-monospace,Menlo,monospace; color:#04222a; padding:1px 5px; border-radius:9px;
+    border:1px solid #ffffffcc; box-shadow:0 1px 3px #00000075; white-space:nowrap}
+  .flowkey{display:none; flex-direction:column; gap:5px; margin-top:2px;
+    border:1px solid var(--line-2); border-radius:8px; padding:9px 10px; background:rgba(6,20,26,.35)}
+  .flowkey .hd{font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint); margin-bottom:1px}
+  .flowkey .row{display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--ink)}
+  .flowkey .fdot{width:10px; height:10px; border-radius:3px; flex:0 0 auto; box-shadow:0 0 0 1px #ffffff22 inset}
+  .flowkey .ftxt{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .flowkey .fn{margin-left:auto; font-family:ui-monospace,Menlo,monospace; color:var(--muted)}
 
   @media (max-width:640px){
     #app{flex-direction:column-reverse}
@@ -145,22 +160,23 @@
         <option value="comm">Commercial or mixed</option>
       </select>
       <label class="switch"><input type="checkbox" id="chkFlows"><span>Show demand exported to another moku</span></label>
+      <div id="flowKey" class="flowkey"></div>
     </div>
 
     <div class="plate">
-      <div class="lab" style="margin-bottom:10px">The four sitings</div>
+      <div class="lab" style="margin-bottom:10px">The four quadrants</div>
       <div class="matrix-wrap">
         <div class="yaxis lab" style="grid-row:1">Restoration demand →</div>
         <div class="matrix" style="grid-row:1; grid-column:2">
-          <div class="cell lh" data-q="lh"><span class="nm">Bring it&nbsp;back</span><span class="ct" data-ct="lh">0</span></div>
-          <div class="cell hh" data-q="hh"><span class="nm">Fix my&nbsp;grounds</span><span class="ct" data-ct="hh">0</span></div>
-          <div class="cell ll" data-q="ll"><span class="nm">Low&nbsp;signal</span><span class="ct" data-ct="ll">0</span></div>
-          <div class="cell hl" data-q="hl"><span class="nm">Still&nbsp;producing</span><span class="ct" data-ct="hl">0</span></div>
+          <div class="cell lh" data-q="lh"><span class="nm">Low use<br>High demand</span><span class="ct" data-ct="lh">0</span></div>
+          <div class="cell hh" data-q="hh"><span class="nm">High use<br>High demand</span><span class="ct" data-ct="hh">0</span></div>
+          <div class="cell ll" data-q="ll"><span class="nm">Low use<br>Low demand</span><span class="ct" data-ct="ll">0</span></div>
+          <div class="cell hl" data-q="hl"><span class="nm">High use<br>Low demand</span><span class="ct" data-ct="hl">0</span></div>
         </div>
         <div class="xaxis lab" style="grid-column:2">Fishing use →</div>
       </div>
       <div class="axhint" style="margin-top:9px">
-        <span id="thrLo">low</span><span id="thrHi">high</span>
+        <span id="thrLo">median split</span><span id="thrHi">high</span>
       </div>
     </div>
 
@@ -178,13 +194,13 @@
     </div>
 
     <div class="sumrow">
-      <div class="stat"><div class="n mono" id="sN">—</div><div class="k">Respondents</div></div>
+      <div class="stat" title="Respondents who named a moku for restoration — the only responses that can be placed on the map"><div class="n mono" id="sN">—</div><div class="k">Respondents</div></div>
       <div class="stat"><div class="n mono" id="sLoop">—</div><div class="k">Fish &amp; fix same moku</div></div>
     </div>
 
     <div class="rule"></div>
     <div class="foot" id="foot">
-      Colour = strategy, from the 2×2 above. <b>Counts, not shares</b> — with a small survey the raw number of voices is the honest signal, so grey moku simply weren't named. Split at each axis' median of named moku. Live from the RHP Survey123 &amp; moku layers.
+      Colour = quadrant on the 2×2 above. <b>Counts, not shares</b> — with a small survey the raw number of voices is the honest signal, so grey moku simply weren't named. Split at each axis' median of named moku. <b>Respondents</b> counts only those who named a moku for restoration — the responses that can be placed on the map. Live from the RHP Survey123 &amp; moku layers.
     </div>
   </aside>
   <div id="map"></div>
@@ -214,7 +230,7 @@
 
   var state = {
     mokuGeo:null, records:[], set:"all", filter:"all", flows:false,
-    byKey:{}, medF:Infinity, medR:Infinity, keyCentroid:{}, layer:null, flowLayer:null, activeQ:null
+    byKey:{}, medF:Infinity, medR:Infinity, keyCentroid:{}, keyName:{}, layer:null, flowLayer:null, activeQ:null
   };
 
   // ---------- data loading with pagination ----------
@@ -266,12 +282,13 @@
   function compute(){
     var by={};
     function bump(key,field){ if(!key) return; (by[key]=by[key]||{F:0,R:0,Rar:0})[field]++; }
-    var both=0, loop=0, n=0;
+    var both=0, loop=0, n=0, named=0;
     state.records.forEach(function(a){
       if(!passes(a)) return;
       n++;
       var fish = norm(a[FISH]) || norm(a[FISH2]);
       var restr = norm(a[RESTR]);
+      if(restr) named++;               // named a moku for restoration — the only mappable responses
       if(fish) bump(fish,"F");
       if(restr){ bump(restr,"R"); if(a[AR]==="Most effective"){ (by[restr]=by[restr]||{F:0,R:0,Rar:0}).Rar++; } }
       if(fish && restr){ both++; if(fish===restr) loop++; }
@@ -283,7 +300,7 @@
       var m=Math.floor(v.length/2); return v.length%2? v[m] : (v[m-1]+v[m])/2;
     }
     state.byKey=by; state.medF=medPos("F"); state.medR=medPos("R");
-    state._n=n; state._both=both; state._loop=loop;
+    state._n=n; state._named=named; state._both=both; state._loop=loop;
   }
 
   function quad(F,R){
@@ -293,12 +310,12 @@
     if(hiF&&!hiR) return "hl"; return "ll";
   }
   var QCOL={hh:cssv("--hh"),hl:cssv("--hl"),lh:cssv("--lh"),ll:cssv("--ll"),nodata:cssv("--nodata")};
-  var QNAME={hh:"Fix my grounds",hl:"Still producing",lh:"Bring it back",ll:"Low signal",nodata:"Not named in survey"};
+  var QNAME={hh:"High use · high demand",hl:"High use · low demand",lh:"Low use · high demand",ll:"Low use · low demand",nodata:"Not named in survey"};
   var QDESC={
-    hh:"Heavily fished and heavily asked-for — the users and the askers are the same people. Strongest constituency for an AR here.",
-    hl:"Fished hard but little restoration demand. Reads as 'still producing' — hold loosely; low demand in prime grounds can be access-anxiety, not health.",
+    hh:"Heavily fished and heavily asked-for — the users and the askers are the same people. Strongest constituency for an artificial reef here.",
+    hl:"Fished hard but little restoration demand. Hold loosely; low demand in prime grounds can be access-anxiety, not poor health.",
     lh:"Little fishing but real restoration demand — a rebuild play. Success looks like habitat recovery, not catch rates.",
-    ll:"Named by a few, but weakly on both. Check against sampling before concluding anything.",
+    ll:"Named by only a few and weak on both. Check against sampling before concluding anything.",
     nodata:"No respondent named this moku for fishing or restoration. Likely an outreach gap, not a verdict."
   };
   function cssv(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
@@ -320,14 +337,15 @@
 
   function draw(){
     if(state.layer) map.removeLayer(state.layer);
-    state.keyCentroid={};
+    state.keyCentroid={}; state.keyName={};
     state.layer = L.geoJSON(state.mokuGeo,{
       style:styleFor,
       onEachFeature:function(feat,layer){
         var k=norm(feat.properties.MO_IS);
         try{ state.keyCentroid[k]=layer.getBounds().getCenter(); }catch(e){}
+        state.keyName[k]=feat.properties.MOKU;
         var d=state.byKey[k]||{F:0,R:0};
-        layer.bindTooltip(feat.properties.MOKU+" · F"+(d.F||0)+" / R"+(d.R||0), {className:"moku-tip",sticky:true});
+        layer.bindTooltip(tipHtml(feat,d), {className:"moku-tip",sticky:true});
         layer.on("mouseover",function(){ layer.setStyle({weight:2,color:"#eaf6f8"}); layer.bringToFront(); showReadout(feat); });
         layer.on("mouseout",function(){ state.layer.resetStyle(layer); hideReadout(); });
       }
@@ -336,20 +354,22 @@
     drawFlows();
   }
 
-  // gentle curved arrow between two latlngs
-  function curve(from,to){
+  // gentle curved arrow between two latlngs; idx bows overlapping arrows apart
+  function curve(from,to,idx){
     var lat1=from.lat,lng1=from.lng,lat2=to.lat,lng2=to.lng;
     var mx=(lat1+lat2)/2, my=(lng1+lng2)/2;
     var dx=lat2-lat1, dy=lng2-lng1;
-    var off=0.16; var cx=mx - dy*off, cy=my + dx*off; // perpendicular control point
+    var off=0.15 + ((idx||0)%3)*0.05; var cx=mx - dy*off, cy=my + dx*off; // perpendicular control point
     var pts=[],N=18;
     for(var i=0;i<=N;i++){var t=i/N;var a=(1-t)*(1-t),b=2*(1-t)*t,c=t*t;
       pts.push([a*lat1+b*cx+c*lat2, a*lng1+b*cy+c*lng2]);}
     return pts;
   }
+  var FLOWPAL=["#4cc3d0","#f2a65a","#e26d9b","#8f86ea","#7ed08a","#e6d15a","#5aa9e6","#c98be0"];
   function drawFlows(){
     if(state.flowLayer){ map.removeLayer(state.flowLayer); state.flowLayer=null; }
-    if(!state.flows) return;
+    var keyEl=document.getElementById("flowKey");
+    if(!state.flows){ if(keyEl){ keyEl.style.display="none"; keyEl.innerHTML=""; } return; }
     // aggregate exports fish->restr (different moku)
     var agg={};
     state.records.forEach(function(a){
@@ -360,19 +380,53 @@
     });
     var rows=Object.keys(agg).map(function(k){var p=k.split("||");return {f:p[0],t:p[1],n:agg[k]};})
       .sort(function(a,b){return b.n-a.n;}).slice(0,8);
+    // one colour per origin moku, so arrows leaving the same place read as a set
+    var oCol={}, oi=0;
+    rows.forEach(function(row){ if(!(row.f in oCol)){ oCol[row.f]=FLOWPAL[oi%FLOWPAL.length]; oi++; } });
     var g=L.layerGroup();
-    rows.forEach(function(row){
+    rows.forEach(function(row,idx){
       var A=state.keyCentroid[row.f], B=state.keyCentroid[row.t]; if(!A||!B) return;
-      var pts=curve(A,B);
-      L.polyline(pts,{color:cssv("--cyan"),weight:Math.min(1+row.n*1.1,6),opacity:0.75,lineCap:"round"}).addTo(g);
-      // arrowhead
+      var col=oCol[row.f];
+      var pts=curve(A,B,idx);
+      var w=Math.min(1.5+row.n*0.9,6);
+      // dark halo underneath separates overlapping lines
+      L.polyline(pts,{color:"#04141a",weight:w+3.5,opacity:0.55,lineCap:"round",lineJoin:"round"}).addTo(g);
+      // coloured flow line (coloured by origin)
+      L.polyline(pts,{color:col,weight:w,opacity:0.92,lineCap:"round",lineJoin:"round"}).addTo(g);
+      // arrowhead at destination
       var p1=pts[pts.length-2],p2=pts[pts.length-1];
       var ang=Math.atan2(p2[0]-p1[0], p2[1]-p1[1])*180/Math.PI;
-      var ico=L.divIcon({className:"",iconSize:[14,14],iconAnchor:[7,7],
-        html:'<div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:11px solid '+cssv("--cyan")+';transform:rotate('+(-ang+90)+'deg);opacity:.9"></div>'});
-      L.marker([p2[0],p2[1]],{icon:ico,interactive:false}).addTo(g);
+      var ico=L.divIcon({className:"",iconSize:[16,16],iconAnchor:[8,8],
+        html:'<div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:12px solid '+col+';filter:drop-shadow(0 0 1px #04141a);transform:rotate('+(-ang+90)+'deg)"></div>'});
+      L.marker([p2[0],p2[1]],{icon:ico,interactive:false,keyboard:false}).addTo(g);
+      // count badge at midpoint
+      var mid=pts[Math.floor(pts.length/2)];
+      var badge=L.divIcon({className:"flow-badge",iconSize:[0,0],
+        html:'<span class="fb" style="background:'+col+'">'+row.n+'</span>'});
+      L.marker(mid,{icon:badge,interactive:false,keyboard:false}).addTo(g);
     });
     state.flowLayer=g.addTo(map);
+    // panel key: colour swatch · origin → destination · count
+    if(keyEl){
+      if(!rows.length){ keyEl.style.display="none"; keyEl.innerHTML=""; }
+      else{
+        var nm=function(k){return state.keyName[k]||k;};
+        var html='<div class="hd">Top exports · fish here → restore there</div>';
+        rows.forEach(function(row){
+          html+='<div class="row"><span class="fdot" style="background:'+oCol[row.f]+'"></span>'+
+                '<span class="ftxt">'+nm(row.f)+' → '+nm(row.t)+'</span><span class="fn">'+row.n+'</span></div>';
+        });
+        keyEl.innerHTML=html; keyEl.style.display="flex";
+      }
+    }
+  }
+
+  // clearer on-map tooltip
+  function tipHtml(feat,d){
+    var F=d.F||0, R=d.R||0;
+    var head='<b>'+feat.properties.MOKU+'</b>';
+    if(F===0 && R===0) return head+'<br><span class="tdim">Not named in survey</span>';
+    return head+'<br>'+F+' fish here · '+R+' want restoration';
   }
 
   // ---------- readout + legend ----------
@@ -383,7 +437,7 @@
     document.getElementById("roBody").style.display="block";
     document.getElementById("roChip").style.background=QCOL[Q];
     document.getElementById("roName").textContent=feat.properties.MOKU;
-    document.getElementById("roIsl").textContent=feat.properties.ISLAND+" · "+QNAME[Q];
+    document.getElementById("roIsl").textContent=feat.properties.ISLAND+" — "+QNAME[Q];
     document.getElementById("roF").textContent=d.F||0;
     var rtxt=(d.R||0); if(d.Rar){ rtxt += "  ("+d.Rar+" AR)"; }
     document.getElementById("roR").innerHTML=rtxt;
@@ -407,9 +461,9 @@
     ["hh","hl","lh","ll"].forEach(function(qk){ var el=document.querySelector('[data-ct="'+qk+'"]'); if(el) el.textContent=counts[qk]; });
     var fT = state.medF===Infinity?"—":("≥"+fmt(state.medF)); 
     var rT = state.medR===Infinity?"—":("≥"+fmt(state.medR));
-    document.getElementById("thrLo").textContent = "named ≥1";
+    document.getElementById("thrLo").textContent = "median split";
     document.getElementById("thrHi").textContent = "high: use "+fT+" · demand "+rT;
-    document.getElementById("sN").textContent = state._n;
+    document.getElementById("sN").textContent = state._named;
     document.getElementById("sLoop").textContent = state._both? Math.round(100*state._loop/state._both)+"%" : "—";
   }
   function fmt(x){ return (x%1===0)? x : x.toFixed(1); }
