@@ -200,7 +200,7 @@
 
     <div class="rule"></div>
     <div class="foot" id="foot">
-      Colour = quadrant on the 2×2 above. <b>Counts, not shares</b> — with a small survey the raw number of voices is the honest signal, so grey moku simply weren't named. Split at each axis' median of named moku. <b>Respondents</b> counts only those who named a moku for restoration — the responses that can be placed on the map. Live from the RHP Survey123 &amp; moku layers.
+      Color = quadrant on the 2×2 above. <b>Counts, not shares</b> — with a small survey the raw number of voices is the honest signal, so grey moku simply weren't named. Split at each axis' median of named moku. <b>Respondents</b> counts only those who named a moku for restoration — the responses that can be placed on the map. Live from the RHP Survey123 &amp; moku layers.
     </div>
   </aside>
   <div id="map"></div>
@@ -380,7 +380,7 @@
     });
     var rows=Object.keys(agg).map(function(k){var p=k.split("||");return {f:p[0],t:p[1],n:agg[k]};})
       .sort(function(a,b){return b.n-a.n;}).slice(0,8);
-    // one colour per origin moku, so arrows leaving the same place read as a set
+    // one color per origin moku, so arrows leaving the same place read as a set
     var oCol={}, oi=0;
     rows.forEach(function(row){ if(!(row.f in oCol)){ oCol[row.f]=FLOWPAL[oi%FLOWPAL.length]; oi++; } });
     var g=L.layerGroup();
@@ -391,7 +391,7 @@
       var w=Math.min(1.5+row.n*0.9,6);
       // dark halo underneath separates overlapping lines
       L.polyline(pts,{color:"#04141a",weight:w+3.5,opacity:0.55,lineCap:"round",lineJoin:"round"}).addTo(g);
-      // coloured flow line (coloured by origin)
+      // colored flow line (colored by origin)
       L.polyline(pts,{color:col,weight:w,opacity:0.92,lineCap:"round",lineJoin:"round"}).addTo(g);
       // arrowhead at destination
       var p1=pts[pts.length-2],p2=pts[pts.length-1];
@@ -406,7 +406,7 @@
       L.marker(mid,{icon:badge,interactive:false,keyboard:false}).addTo(g);
     });
     state.flowLayer=g.addTo(map);
-    // panel key: colour swatch · origin → destination · count
+    // panel key: color swatch · origin → destination · count
     if(keyEl){
       if(!rows.length){ keyEl.style.display="none"; keyEl.innerHTML=""; }
       else{
