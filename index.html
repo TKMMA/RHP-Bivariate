@@ -16,6 +16,10 @@
     --lh:#d364ad;   /* low use / high demand  — bring it back (magenta) */
     --hh:#8f86ea;   /* high use / high demand — fix my grounds (indigo blend) */
     --nodata:#16272f;
+    /* demand-magnet diverging scale */
+    --imp:#37c6d4;  /* net importer — a demand magnet */
+    --exp:#e8825a;  /* net exporter — points elsewhere */
+    --mid:#3a545f;  /* balanced */
   }
   *{box-sizing:border-box}
   html,body{height:100%;margin:0}
@@ -25,7 +29,7 @@
     -webkit-font-smoothing:antialiased; overflow:hidden;
   }
   #app{position:fixed; inset:0; display:flex}
-  #map{flex:1 1 auto; background:var(--sea)}
+  #map{flex:1 1 auto; background:var(--sea); position:relative}
   .leaflet-container{background:var(--sea); font-family:inherit}
   .leaflet-bar a, .leaflet-control-zoom a{background:var(--plate); color:var(--ink); border-color:var(--line)}
   .leaflet-bar a:hover{background:var(--plate-2)}
@@ -37,11 +41,25 @@
     border-right:1px solid var(--line-2);
     padding:20px 20px 40px; display:flex; flex-direction:column; gap:18px;
   }
+  .head-top{display:flex; justify-content:space-between; align-items:flex-start; gap:8px}
   .eyebrow{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
     font-size:10.5px; letter-spacing:.22em; text-transform:uppercase; color:var(--cyan)}
   h1{font-size:20px; line-height:1.15; margin:6px 0 2px; letter-spacing:-.01em; font-weight:650}
   .sub{color:var(--muted); font-size:12.5px; line-height:1.45}
   .rule{height:1px; background:var(--line); margin:2px 0}
+
+  .helpbtn{background:var(--plate-2); border:1px solid var(--line-2); color:var(--cyan);
+    width:21px; height:21px; border-radius:50%; cursor:pointer; font-size:12px; line-height:1; flex:0 0 auto; font-family:inherit}
+  .helpbtn:hover{background:var(--plate)}
+
+  /* intro / how-to card */
+  .intro{position:relative; border:1px solid var(--line-2); border-left:3px solid var(--cyan);
+    background:rgba(76,195,208,.06); border-radius:9px; padding:12px 30px 12px 13px}
+  .intro-h{font-size:12.5px; font-weight:650; margin-bottom:5px}
+  .intro-b{font-size:11.5px; color:var(--muted); line-height:1.55}
+  .intro-b b{color:var(--ink); font-weight:600}
+  .intro-x{position:absolute; top:6px; right:8px; background:none; border:0; color:var(--faint); font-size:17px; cursor:pointer; line-height:1}
+  .intro-x:hover{color:var(--ink)}
 
   .mono{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
   .lab{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
@@ -61,11 +79,6 @@
     width:100%; background:var(--plate-2); color:var(--ink); border:1px solid var(--line-2);
     border-radius:7px; padding:8px 10px; font-size:12.5px; font-family:inherit;
   }
-  .switch{display:flex; align-items:center; gap:9px; cursor:pointer; user-select:none; font-size:12.5px; color:var(--ink)}
-  .switch input{appearance:none; width:34px; height:19px; background:var(--line-2); border-radius:20px; position:relative; cursor:pointer; transition:background .15s; flex:0 0 auto}
-  .switch input:checked{background:var(--cyan)}
-  .switch input::after{content:""; position:absolute; top:2px; left:2px; width:15px; height:15px; border-radius:50%; background:#e8f1f2; transition:transform .15s}
-  .switch input:checked::after{transform:translateX(15px)}
 
   /* bivariate plate legend */
   .plate{border:1px solid var(--line-2); border-radius:9px; padding:14px; background:rgba(6,20,26,.35)}
@@ -81,6 +94,28 @@
   .cell.hh .ct,.cell.hl .ct,.cell.lh .ct,.cell.ll .ct{color:#06202880}
   .cell.active{outline-color:#fff}
   .axhint{font-size:9.5px; color:var(--faint); display:flex; justify-content:space-between}
+
+  /* demand-magnet legend */
+  .magbar{height:12px; border-radius:6px; background:linear-gradient(90deg,var(--exp),var(--mid),var(--imp))}
+  .maglabels{display:flex; justify-content:space-between; font-size:9.5px; color:var(--faint); margin-top:5px}
+  .headline{margin-top:12px; font-size:12px; color:var(--muted); line-height:1.45}
+  .headline .hl-n{color:var(--imp); font-weight:650; font-size:16px}
+
+  /* flow panel (sankey / focus breakdown) */
+  .sankeywrap{border:1px solid var(--line-2); border-radius:9px; padding:10px 11px; background:rgba(6,20,26,.35)}
+  .sk-hd{fill:var(--faint); font:600 8px ui-monospace,Menlo,monospace; letter-spacing:.12em}
+  .sk-lb{fill:var(--ink); font:10px system-ui,sans-serif}
+  .sk-empty,.fp-none{color:var(--faint); font-size:12px; padding:6px 2px}
+  .fp-head{font-size:12.5px; color:var(--ink); display:flex; align-items:center; gap:8px; margin-bottom:4px}
+  .fp-clear{margin-left:auto; background:var(--plate-2); border:1px solid var(--line-2); color:var(--cyan);
+    border-radius:6px; padding:3px 8px; font-size:10.5px; cursor:pointer; font-family:inherit}
+  .fp-clear:hover{background:var(--plate)}
+  .fp-sec{margin-top:9px}
+  .fp-lab{font-size:9.5px; letter-spacing:.1em; text-transform:uppercase; margin-bottom:5px; font-family:ui-monospace,Menlo,monospace}
+  .fp-sec .row{display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--ink); padding:1.5px 0}
+  .fp-sec .fdot{width:9px; height:9px; border-radius:2px; flex:0 0 auto; box-shadow:0 0 0 1px #ffffff22 inset}
+  .fp-sec .ftxt{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .fp-sec .fn{margin-left:auto; font-family:ui-monospace,Menlo,monospace; color:var(--muted)}
 
   /* readout */
   .readout{border:1px solid var(--line-2); border-radius:9px; padding:13px 14px; background:rgba(6,20,26,.35); min-height:118px}
@@ -102,6 +137,13 @@
   .foot b{color:var(--muted); font-weight:600}
   a{color:var(--cyan)}
 
+  /* live view caption over the map */
+  .viewcap{position:absolute; top:8px; left:50%; transform:translateX(-50%); z-index:800; pointer-events:none;
+    background:rgba(10,28,38,.82); border:1px solid var(--line-2); border-radius:20px; padding:5px 13px;
+    font-size:11px; color:var(--muted); white-space:nowrap; max-width:74%; overflow:hidden; text-overflow:ellipsis;
+    box-shadow:0 4px 14px #00000050; -webkit-backdrop-filter:blur(3px); backdrop-filter:blur(3px)}
+  .viewcap b{color:var(--ink); font-weight:600}
+
   /* overlays */
   #status{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; z-index:1200}
   .card{background:var(--plate); border:1px solid var(--line-2); border-radius:12px; padding:20px 24px; max-width:420px; pointer-events:auto; box-shadow:0 18px 50px #00000060}
@@ -117,18 +159,11 @@
   .leaflet-tooltip.moku-tip b{color:var(--ink); font-weight:650}
   .leaflet-tooltip.moku-tip .tdim{color:var(--faint)}
 
-  /* export-flow arrows */
+  /* flow count badge on arrows */
   .flow-badge{background:none!important; border:0!important}
   .flow-badge .fb{display:inline-block; transform:translate(-50%,-50%);
     font:650 10px ui-monospace,Menlo,monospace; color:#04222a; padding:1px 5px; border-radius:9px;
     border:1px solid #ffffffcc; box-shadow:0 1px 3px #00000075; white-space:nowrap}
-  .flowkey{display:none; flex-direction:column; gap:5px; margin-top:2px;
-    border:1px solid var(--line-2); border-radius:8px; padding:9px 10px; background:rgba(6,20,26,.35)}
-  .flowkey .hd{font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint); margin-bottom:1px}
-  .flowkey .row{display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--ink)}
-  .flowkey .fdot{width:10px; height:10px; border-radius:3px; flex:0 0 auto; box-shadow:0 0 0 1px #ffffff22 inset}
-  .flowkey .ftxt{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
-  .flowkey .fn{margin-left:auto; font-family:ui-monospace,Menlo,monospace; color:var(--muted)}
 
   @media (max-width:640px){
     #app{flex-direction:column-reverse}
@@ -142,9 +177,23 @@
 <div id="app">
   <aside id="panel">
     <div>
-      <div class="eyebrow">DAR · Reef Habitat Program</div>
+      <div class="head-top">
+        <div class="eyebrow">DAR · Reef Habitat Program</div>
+        <button id="helpBtn" class="helpbtn" title="How to read this map" aria-label="How to read this map">?</button>
+      </div>
       <h1>Fish here / Restore there</h1>
       <div class="sub">Each moku compared on two survey questions — where fishers <em>fish</em> and where they want <em>restoration</em> — to find where an artificial reef has both users and demand.</div>
+    </div>
+
+    <div class="intro" id="intro">
+      <button class="intro-x" id="introX" aria-label="Dismiss">×</button>
+      <div class="intro-h">How to read this map</div>
+      <div class="intro-b">
+        Two survey questions per fisher: where they <b>fish</b> and where they want <b>restoration</b>.<br>
+        • <b>Quadrant map</b> colours each moku by those two together (see the 2×2 key).<br>
+        • <b>Exported demand</b> shows where fishers point <em>away</em> from their own grounds — click a moku to trace its links.<br>
+        Hover any moku for its numbers.
+      </div>
     </div>
 
     <div class="ctl">
@@ -159,11 +208,14 @@
         <option value="freq">Fish &gt; 5×/month</option>
         <option value="comm">Commercial or mixed</option>
       </select>
-      <label class="switch"><input type="checkbox" id="chkFlows"><span>Show demand exported to another moku</span></label>
-      <div id="flowKey" class="flowkey"></div>
+      <div class="lab" style="margin-top:5px">Map view</div>
+      <div class="seg" id="segMode" role="group" aria-label="Map view">
+        <button data-mode="quad" aria-pressed="true">Quadrant map</button>
+        <button data-mode="export" aria-pressed="false">Exported demand</button>
+      </div>
     </div>
 
-    <div class="plate">
+    <div class="plate" id="platePanel">
       <div class="lab" style="margin-bottom:10px">The four quadrants</div>
       <div class="matrix-wrap">
         <div class="yaxis lab" style="grid-row:1">Restoration demand →</div>
@@ -180,14 +232,23 @@
       </div>
     </div>
 
+    <div class="plate" id="exportPanel" style="display:none">
+      <div class="lab" style="margin-bottom:10px">Net restoration demand</div>
+      <div class="magbar"></div>
+      <div class="maglabels"><span>Exports demand</span><span>Balanced</span><span>Demand magnet</span></div>
+      <div class="headline" id="headline">—</div>
+    </div>
+
+    <div class="sankeywrap" id="sankeyWrap" style="display:none"></div>
+
     <div class="readout" id="readout">
-      <div class="ro-empty" id="roEmpty">Hover a moku to read its position on the plate.</div>
+      <div class="ro-empty" id="roEmpty">Hover a moku for its numbers. In <b>Exported demand</b>, click one to trace its links.</div>
       <div id="roBody" style="display:none">
         <div class="ro-name"><span class="chip" id="roChip"></span><span id="roName">—</span></div>
         <div class="ro-isl" id="roIsl">—</div>
         <div class="ro-grid">
-          <div class="stat"><div class="n" id="roF">0</div><div class="k">Fish here</div></div>
-          <div class="stat"><div class="n" id="roR">0</div><div class="k">Want restoration</div></div>
+          <div class="stat"><div class="n" id="roF">0</div><div class="k" id="roFk">Fish here</div></div>
+          <div class="stat"><div class="n" id="roR">0</div><div class="k" id="roRk">Want restoration</div></div>
         </div>
         <div class="ro-strat" id="roStrat">—</div>
       </div>
@@ -200,10 +261,10 @@
 
     <div class="rule"></div>
     <div class="foot" id="foot">
-      Color = quadrant on the 2×2 above. <b>Counts, not shares</b> — with a small survey the raw number of voices is the honest signal, so grey moku simply weren't named. Split at each axis' median of named moku. <b>Respondents</b> counts only those who named a moku for restoration — the responses that can be placed on the map. Live from the RHP Survey123 &amp; moku layers.
+      Two views: <b>Quadrant map</b> colours each moku by fishing use × restoration demand (the 2×2 key). <b>Exported demand</b> colours by net cross-moku demand and lets you click a moku to trace where its fishers point. Counts, not shares; grey = not named. <b>Respondents</b> counts only those who named a moku for restoration — the responses that can be placed on the map. Live from the RHP Survey123 &amp; moku layers.
     </div>
   </aside>
-  <div id="map"></div>
+  <div id="map"><div id="viewcap" class="viewcap" aria-live="polite"></div></div>
 </div>
 
 <div id="status">
@@ -229,9 +290,13 @@
       AR="Artificialreefs";
 
   var state = {
-    mokuGeo:null, records:[], set:"all", filter:"all", flows:false,
-    byKey:{}, medF:Infinity, medR:Infinity, keyCentroid:{}, keyName:{}, layer:null, flowLayer:null, activeQ:null
+    mokuGeo:null, records:[], set:"all", filter:"all", mode:"quad", focus:null,
+    byKey:{}, medF:Infinity, medR:Infinity, keyCentroid:{}, keyName:{},
+    layer:null, flowLayer:null, _fitted:false,
+    _pairs:[], _imp:{}, _exp:{}, _netMax:0, _bothC:0, _exportedC:0, _exportPct:0
   };
+
+  var FLOWPAL=["#4cc3d0","#f2a65a","#e26d9b","#8f86ea","#7ed08a","#e6d15a","#5aa9e6","#c98be0"];
 
   // ---------- data loading with pagination ----------
   function q(url, params){
@@ -283,6 +348,7 @@
     var by={};
     function bump(key,field){ if(!key) return; (by[key]=by[key]||{F:0,R:0,Rar:0})[field]++; }
     var both=0, loop=0, n=0, named=0;
+    var pairs={}, imp={}, exp={};
     state.records.forEach(function(a){
       if(!passes(a)) return;
       n++;
@@ -291,7 +357,10 @@
       if(restr) named++;               // named a moku for restoration — the only mappable responses
       if(fish) bump(fish,"F");
       if(restr){ bump(restr,"R"); if(a[AR]==="Most effective"){ (by[restr]=by[restr]||{F:0,R:0,Rar:0}).Rar++; } }
-      if(fish && restr){ both++; if(fish===restr) loop++; }
+      if(fish && restr){ both++;
+        if(fish===restr){ loop++; }
+        else { var pk=fish+"||"+restr; pairs[pk]=(pairs[pk]||0)+1; exp[fish]=(exp[fish]||0)+1; imp[restr]=(imp[restr]||0)+1; }
+      }
     });
     // medians of positive values, per axis
     function medPos(sel){
@@ -301,6 +370,14 @@
     }
     state.byKey=by; state.medF=medPos("F"); state.medR=medPos("R");
     state._n=n; state._named=named; state._both=both; state._loop=loop;
+
+    // cross-moku flow model (exported demand)
+    var rows=Object.keys(pairs).map(function(k){var p=k.split("||");return {f:p[0],t:p[1],n:pairs[k]};});
+    rows.sort(function(a,b){return b.n-a.n;});
+    var nm=0, kk, uk={}; for(kk in imp)uk[kk]=1; for(kk in exp)uk[kk]=1;
+    for(kk in uk){ var nv=Math.abs((imp[kk]||0)-(exp[kk]||0)); if(nv>nm)nm=nv; }
+    state._pairs=rows; state._imp=imp; state._exp=exp; state._netMax=nm;
+    state._bothC=both; state._exportedC=both-loop; state._exportPct= both? Math.round(100*(both-loop)/both):0;
   }
 
   function quad(F,R){
@@ -320,6 +397,19 @@
   };
   function cssv(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
 
+  // ---------- colour helpers (demand magnet) ----------
+  function hex2rgb(h){h=h.replace("#","");return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)];}
+  function rgb2hex(a){return "#"+a.map(function(x){var s=Math.max(0,Math.min(255,Math.round(x))).toString(16);return s.length<2?"0"+s:s;}).join("");}
+  function lerpHex(a,b,t){var A=hex2rgb(a),B=hex2rgb(b);return rgb2hex([A[0]+(B[0]-A[0])*t,A[1]+(B[1]-A[1])*t,A[2]+(B[2]-A[2])*t]);}
+  function magnetColor(net){
+    if(state._netMax<=0) return cssv("--mid");
+    var t=Math.max(-1,Math.min(1, net/state._netMax));
+    return t>=0 ? lerpHex(cssv("--mid"),cssv("--imp"),t) : lerpHex(cssv("--mid"),cssv("--exp"),-t);
+  }
+  function netKey(k){ return (state._imp[k]||0)-(state._exp[k]||0); }
+  function hasPair(f,t){ for(var i=0;i<state._pairs.length;i++){var p=state._pairs[i]; if(p.f===f&&p.t===t) return p.n;} return 0; }
+  function fmtNet(x){ return x>0?("+"+x):(""+x); }
+
   // ---------- map ----------
   var map;
   function initMap(){
@@ -327,12 +417,27 @@
     map.setView([20.6,-157.4],7);
     L.control.attribution({prefix:false, position:"bottomright"})
       .addAttribution("moku + RHP Survey123 · services.arcgis.com").addTo(map);
+    map.on("click",function(){ if(state.mode==="export" && state.focus){ clearFocus(); } });
   }
 
   function styleFor(feat){
-    var k = norm(feat.properties.MO_IS); var d = state.byKey[k]||{F:0,R:0};
+    var k = norm(feat.properties.MO_IS);
+    if(state.mode==="export") return styleExport(k);
+    var d = state.byKey[k]||{F:0,R:0};
     var Q = quad(d.F,d.R);
     return {color:"#0b2129", weight:0.7, fillColor:QCOL[Q], fillOpacity: Q==="nodata"?0.12:0.82};
+  }
+  function styleExport(k){
+    var imp=state._imp[k]||0, exp=state._exp[k]||0, flow=imp+exp;
+    if(state.focus){
+      if(k===state.focus) return {color:"#ffffff", weight:2.2, fillColor:magnetColor(imp-exp), fillOpacity:0.92};
+      var out=hasPair(state.focus,k), inc=hasPair(k,state.focus);
+      if(out||inc){ var c = (out&&inc)? cssv("--hh") : (out? cssv("--exp") : cssv("--imp"));
+        return {color:c, weight:1.4, fillColor:c, fillOpacity:0.5}; }
+      return {color:"#0b2129", weight:0.5, fillColor:cssv("--nodata"), fillOpacity:0.22};
+    }
+    if(flow===0) return {color:"#0b2129", weight:0.5, fillColor:cssv("--nodata"), fillOpacity:0.14};
+    return {color:"#0b2129", weight:0.7, fillColor:magnetColor(imp-exp), fillOpacity:0.85};
   }
 
   function draw(){
@@ -344,105 +449,195 @@
         var k=norm(feat.properties.MO_IS);
         try{ state.keyCentroid[k]=layer.getBounds().getCenter(); }catch(e){}
         state.keyName[k]=feat.properties.MOKU;
-        var d=state.byKey[k]||{F:0,R:0};
-        layer.bindTooltip(tipHtml(feat,d), {className:"moku-tip",sticky:true});
+        layer.bindTooltip(tipHtml(feat,k), {className:"moku-tip",sticky:true});
         layer.on("mouseover",function(){ layer.setStyle({weight:2,color:"#eaf6f8"}); layer.bringToFront(); showReadout(feat); });
-        layer.on("mouseout",function(){ state.layer.resetStyle(layer); hideReadout(); });
+        layer.on("mouseout",function(){ layer.setStyle(styleFor(feat)); hideReadout(); });
+        layer.on("click",function(){ if(state.mode==="export"){ setFocus(k); } });
       }
     }).addTo(map);
-    try{ map.fitBounds(state.layer.getBounds(),{padding:[24,24]}); }catch(e){}
-    drawFlows();
+    try{ if(!state._fitted){ map.fitBounds(state.layer.getBounds(),{padding:[24,24]}); state._fitted=true; } }catch(e){}
+    drawFocus();
+  }
+  function restyle(){ if(state.layer) state.layer.eachLayer(function(l){ l.setStyle(styleFor(l.feature)); }); }
+
+  // clearer on-map tooltip (mode aware)
+  function tipHtml(feat,k){
+    var head="<b>"+feat.properties.MOKU+"</b>";
+    if(state.mode==="export"){
+      var imp=state._imp[k]||0, exp=state._exp[k]||0;
+      if(imp+exp===0) return head+"<br><span class='tdim'>No cross-moku demand</span>";
+      return head+"<br>"+imp+" want restoration here · "+exp+" sent away<br><span class='tdim'>net "+fmtNet(imp-exp)+" · click to focus</span>";
+    }
+    var d=state.byKey[k]||{F:0,R:0}; var F=d.F||0, R=d.R||0;
+    if(F===0 && R===0) return head+"<br><span class='tdim'>Not named in survey</span>";
+    return head+"<br>"+F+" fish here · "+R+" want restoration";
   }
 
-  // gentle curved arrow between two latlngs; idx bows overlapping arrows apart
+  // ---------- curved arrows (exported-demand focus) ----------
   function curve(from,to,idx){
     var lat1=from.lat,lng1=from.lng,lat2=to.lat,lng2=to.lng;
     var mx=(lat1+lat2)/2, my=(lng1+lng2)/2;
     var dx=lat2-lat1, dy=lng2-lng1;
-    var off=0.15 + ((idx||0)%3)*0.05; var cx=mx - dy*off, cy=my + dx*off; // perpendicular control point
+    var off=0.15 + ((idx||0)%3)*0.05; var cx=mx - dy*off, cy=my + dx*off;
     var pts=[],N=18;
     for(var i=0;i<=N;i++){var t=i/N;var a=(1-t)*(1-t),b=2*(1-t)*t,c=t*t;
       pts.push([a*lat1+b*cx+c*lat2, a*lng1+b*cy+c*lng2]);}
     return pts;
   }
-  var FLOWPAL=["#4cc3d0","#f2a65a","#e26d9b","#8f86ea","#7ed08a","#e6d15a","#5aa9e6","#c98be0"];
-  function drawFlows(){
-    if(state.flowLayer){ map.removeLayer(state.flowLayer); state.flowLayer=null; }
-    var keyEl=document.getElementById("flowKey");
-    if(!state.flows){ if(keyEl){ keyEl.style.display="none"; keyEl.innerHTML=""; } return; }
-    // aggregate exports fish->restr (different moku)
-    var agg={};
-    state.records.forEach(function(a){
-      if(!passes(a)) return;
-      var f=norm(a[FISH])||norm(a[FISH2]), r=norm(a[RESTR]);
-      if(!f||!r||f===r) return;
-      var key=f+"||"+r; agg[key]=(agg[key]||0)+1;
-    });
-    var rows=Object.keys(agg).map(function(k){var p=k.split("||");return {f:p[0],t:p[1],n:agg[k]};})
-      .sort(function(a,b){return b.n-a.n;}).slice(0,8);
-    // one color per origin moku, so arrows leaving the same place read as a set
-    var oCol={}, oi=0;
-    rows.forEach(function(row){ if(!(row.f in oCol)){ oCol[row.f]=FLOWPAL[oi%FLOWPAL.length]; oi++; } });
+  function clearFlowLayer(){ if(state.flowLayer){ map.removeLayer(state.flowLayer); state.flowLayer=null; } }
+  function arrow(g, fk, tk, n, col, idx){
+    var A=state.keyCentroid[fk], B=state.keyCentroid[tk]; if(!A||!B) return;
+    var pts=curve(A,B,idx); var w=Math.min(1.6+n*0.9,6);
+    L.polyline(pts,{color:"#04141a",weight:w+3.5,opacity:0.55,lineCap:"round",lineJoin:"round"}).addTo(g);
+    L.polyline(pts,{color:col,weight:w,opacity:0.95,lineCap:"round",lineJoin:"round"}).addTo(g);
+    var p1=pts[pts.length-2],p2=pts[pts.length-1];
+    var ang=Math.atan2(p2[0]-p1[0], p2[1]-p1[1])*180/Math.PI;
+    var ico=L.divIcon({className:"",iconSize:[16,16],iconAnchor:[8,8],
+      html:'<div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:12px solid '+col+';filter:drop-shadow(0 0 1px #04141a);transform:rotate('+(-ang+90)+'deg)"></div>'});
+    L.marker([p2[0],p2[1]],{icon:ico,interactive:false,keyboard:false}).addTo(g);
+    var mid=pts[Math.floor(pts.length/2)];
+    L.marker(mid,{icon:L.divIcon({className:"flow-badge",iconSize:[0,0],html:'<span class="fb" style="background:'+col+'">'+n+'</span>'}),interactive:false,keyboard:false}).addTo(g);
+  }
+  function drawFocus(){
+    clearFlowLayer();
+    if(state.mode!=="export" || !state.focus) return;
+    var outs=state._pairs.filter(function(p){return p.f===state.focus;});
+    var ins =state._pairs.filter(function(p){return p.t===state.focus;});
     var g=L.layerGroup();
-    rows.forEach(function(row,idx){
-      var A=state.keyCentroid[row.f], B=state.keyCentroid[row.t]; if(!A||!B) return;
-      var col=oCol[row.f];
-      var pts=curve(A,B,idx);
-      var w=Math.min(1.5+row.n*0.9,6);
-      // dark halo underneath separates overlapping lines
-      L.polyline(pts,{color:"#04141a",weight:w+3.5,opacity:0.55,lineCap:"round",lineJoin:"round"}).addTo(g);
-      // colored flow line (colored by origin)
-      L.polyline(pts,{color:col,weight:w,opacity:0.92,lineCap:"round",lineJoin:"round"}).addTo(g);
-      // arrowhead at destination
-      var p1=pts[pts.length-2],p2=pts[pts.length-1];
-      var ang=Math.atan2(p2[0]-p1[0], p2[1]-p1[1])*180/Math.PI;
-      var ico=L.divIcon({className:"",iconSize:[16,16],iconAnchor:[8,8],
-        html:'<div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:12px solid '+col+';filter:drop-shadow(0 0 1px #04141a);transform:rotate('+(-ang+90)+'deg)"></div>'});
-      L.marker([p2[0],p2[1]],{icon:ico,interactive:false,keyboard:false}).addTo(g);
-      // count badge at midpoint
-      var mid=pts[Math.floor(pts.length/2)];
-      var badge=L.divIcon({className:"flow-badge",iconSize:[0,0],
-        html:'<span class="fb" style="background:'+col+'">'+row.n+'</span>'});
-      L.marker(mid,{icon:badge,interactive:false,keyboard:false}).addTo(g);
-    });
+    outs.forEach(function(p,i){ arrow(g,p.f,p.t,p.n,cssv("--exp"),i); });
+    ins.forEach(function(p,i){ arrow(g,p.f,p.t,p.n,cssv("--imp"),i+outs.length); });
     state.flowLayer=g.addTo(map);
-    // panel key: color swatch · origin → destination · count
-    if(keyEl){
-      if(!rows.length){ keyEl.style.display="none"; keyEl.innerHTML=""; }
-      else{
-        var nm=function(k){return state.keyName[k]||k;};
-        var html='<div class="hd">Top exports · fish here → restore there</div>';
-        rows.forEach(function(row){
-          html+='<div class="row"><span class="fdot" style="background:'+oCol[row.f]+'"></span>'+
-                '<span class="ftxt">'+nm(row.f)+' → '+nm(row.t)+'</span><span class="fn">'+row.n+'</span></div>';
-        });
-        keyEl.innerHTML=html; keyEl.style.display="flex";
-      }
+  }
+
+  // ---------- focus / mode ----------
+  function setFocus(k){ state.focus=(state.focus===k? null : k); restyle(); drawFocus(); renderFlowPanel(); updateCaption(); }
+  function clearFocus(){ state.focus=null; restyle(); drawFocus(); renderFlowPanel(); updateCaption(); }
+
+  // ---------- Sankey ----------
+  function nmOf(k){ return state.keyName[k]||k; }
+  function shortName(k){ var n=nmOf(k); return n.length>12? n.slice(0,11)+"…" : n; }
+  function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+  function sankeyLayout(rows,W,H,opt){
+    opt=opt||{};
+    var pad=opt.pad||12, nodeW=opt.nodeW||9, gap=opt.gap||7, labelW=opt.labelW||70;
+    var leftIds=[],rightIds=[],lval={},rval={},total=0;
+    rows.forEach(function(r){
+      if(leftIds.indexOf(r.f)<0)leftIds.push(r.f);
+      if(rightIds.indexOf(r.t)<0)rightIds.push(r.t);
+      lval[r.f]=(lval[r.f]||0)+r.n; rval[r.t]=(rval[r.t]||0)+r.n; total+=r.n;
+    });
+    leftIds.sort(function(a,b){return lval[b]-lval[a];});
+    rightIds.sort(function(a,b){return rval[b]-rval[a];});
+    var availL=H-2*pad-gap*(Math.max(leftIds.length-1,0));
+    var availR=H-2*pad-gap*(Math.max(rightIds.length-1,0));
+    var scale=Math.min(availL,availR)/(total||1);
+    function place(ids,val){
+      var y=pad,pos={};
+      ids.forEach(function(id){var h=Math.max(val[id]*scale,3);pos[id]={y:y,h:h};y+=h+gap;});
+      var used=y-gap-pad; var off=(H-2*pad-used)/2; if(off>0){for(var id in pos)pos[id].y+=off;}
+      return pos;
     }
+    var Lp=place(leftIds,lval), Rp=place(rightIds,rval);
+    var leftX=pad+labelW, rightX=W-pad-labelW-nodeW;
+    var nodes=[];
+    leftIds.forEach(function(id){nodes.push({id:id,side:"L",x:leftX,y:Lp[id].y,h:Lp[id].h,val:lval[id]});});
+    rightIds.forEach(function(id){nodes.push({id:id,side:"R",x:rightX,y:Rp[id].y,h:Rp[id].h,val:rval[id]});});
+    var lc={},rc={};leftIds.forEach(function(id){lc[id]=Lp[id].y;});rightIds.forEach(function(id){rc[id]=Rp[id].y;});
+    var ribbons=[];
+    rows.forEach(function(r){
+      var w=Math.max(r.n*scale,2);
+      var y0=lc[r.f]+w/2; lc[r.f]+=w;
+      var y1=rc[r.t]+w/2; rc[r.t]+=w;
+      var x0=leftX+nodeW, x1=rightX, mx=(x0+x1)/2;
+      ribbons.push({path:"M"+x0+","+y0+" C"+mx+","+y0+" "+mx+","+y1+" "+x1+","+y1, w:w, f:r.f, t:r.t, n:r.n});
+    });
+    return {nodes:nodes,ribbons:ribbons,scale:scale,leftIds:leftIds,rightIds:rightIds,nodeW:nodeW,leftX:leftX,rightX:rightX};
+  }
+  function sankeySvg(rows){
+    if(!rows.length) return '<div class="sk-empty">No cross-moku demand in this selection.</div>';
+    var W=302, lc=0,rc=0,ls={},rs={};
+    rows.forEach(function(r){ if(!(r.f in ls)){ls[r.f]=1;lc++;} if(!(r.t in rs)){rs[r.t]=1;rc++;} });
+    var H=Math.max(150, Math.min(320, 34 + Math.max(lc,rc)*30));
+    var L=sankeyLayout(rows,W,H,{pad:26,labelW:66,nodeW:9,gap:8});
+    var oCol={}, oi=0; L.leftIds.forEach(function(id){oCol[id]=FLOWPAL[oi%FLOWPAL.length];oi++;});
+    var s='<svg viewBox="0 0 '+W+' '+H+'" width="100%" style="display:block">';
+    s+='<text x="'+L.leftX+'" y="13" text-anchor="end" class="sk-hd">FISH HERE</text>';
+    s+='<text x="'+(L.rightX+L.nodeW)+'" y="13" text-anchor="start" class="sk-hd">RESTORE THERE</text>';
+    L.ribbons.forEach(function(rb){
+      s+='<path d="'+rb.path+'" fill="none" stroke="'+oCol[rb.f]+'" stroke-width="'+rb.w.toFixed(1)+'" stroke-opacity="0.42"><title>'+esc(nmOf(rb.f))+" → "+esc(nmOf(rb.t))+": "+rb.n+'</title></path>';
+    });
+    L.nodes.forEach(function(n){
+      var col = n.side==="L"? oCol[n.id] : cssv("--muted");
+      s+='<rect x="'+n.x+'" y="'+n.y.toFixed(1)+'" width="'+L.nodeW+'" height="'+n.h.toFixed(1)+'" rx="2" fill="'+col+'"/>';
+      if(n.side==="L") s+='<text x="'+(n.x-5)+'" y="'+(n.y+n.h/2+3).toFixed(1)+'" text-anchor="end" class="sk-lb">'+esc(shortName(n.id))+'</text>';
+      else s+='<text x="'+(n.x+L.nodeW+5)+'" y="'+(n.y+n.h/2+3).toFixed(1)+'" text-anchor="start" class="sk-lb">'+esc(shortName(n.id))+'</text>';
+    });
+    s+="</svg>";
+    return s;
+  }
+  function listRows(rows,fld,col){
+    return rows.map(function(p){
+      return '<div class="row"><span class="fdot" style="background:'+col+'"></span><span class="ftxt">'+esc(nmOf(p[fld]))+'</span><span class="fn">'+p.n+'</span></div>';
+    }).join("");
+  }
+  function focusBreakdownHtml(k){
+    var outs=state._pairs.filter(function(p){return p.f===k;});
+    var ins =state._pairs.filter(function(p){return p.t===k;});
+    var h='<div class="fp-head"><b>'+esc(nmOf(k))+'</b> · net '+fmtNet(netKey(k))+'<button id="clrFocus" class="fp-clear">Show all flows</button></div>';
+    h+='<div class="fp-sec"><div class="fp-lab" style="color:'+cssv("--exp")+'">Its fishers want restoration in</div>';
+    h+= outs.length? listRows(outs,"t",cssv("--exp")) : '<div class="fp-none">— nowhere else —</div>';
+    h+='</div><div class="fp-sec"><div class="fp-lab" style="color:'+cssv("--imp")+'">Who wants restoration here fishes in</div>';
+    h+= ins.length? listRows(ins,"f",cssv("--imp")) : '<div class="fp-none">— nowhere else —</div>';
+    h+='</div>';
+    return h;
+  }
+  function renderFlowPanel(){
+    var wrap=document.getElementById("sankeyWrap");
+    if(state.mode!=="export"){ wrap.style.display="none"; wrap.innerHTML=""; return; }
+    wrap.style.display="";
+    wrap.innerHTML = state.focus ? focusBreakdownHtml(state.focus) : sankeySvg(state._pairs.slice(0,8));
   }
 
-  // clearer on-map tooltip
-  function tipHtml(feat,d){
-    var F=d.F||0, R=d.R||0;
-    var head='<b>'+feat.properties.MOKU+'</b>';
-    if(F===0 && R===0) return head+'<br><span class="tdim">Not named in survey</span>';
-    return head+'<br>'+F+' fish here · '+R+' want restoration';
+  // ---------- readout ----------
+  function magnetLabel(net,flow){
+    if(flow===0) return "No cross-moku demand";
+    if(net>0) return "Demand magnet (+"+net+")";
+    if(net<0) return "Exports demand ("+net+")";
+    return "Balanced";
   }
-
-  // ---------- readout + legend ----------
+  function magnetDesc(net,imp,exp){
+    if(imp+exp===0) return "No one named a different moku to or from here — its fishers and askers stay local (or it wasn't named).";
+    if(net>0) return "More fishers from elsewhere want restoration here ("+imp+" in) than local fishers send away ("+exp+" out) — a shared priority beyond its own users.";
+    if(net<0) return "Its fishers point elsewhere for restoration ("+exp+" out) more than outsiders point here ("+imp+" in).";
+    return "Balanced: as much restoration demand flows in ("+imp+") as flows out ("+exp+").";
+  }
   function showReadout(feat){
     var k=norm(feat.properties.MO_IS); var d=state.byKey[k]||{F:0,R:0,Rar:0};
-    var Q=quad(d.F,d.R);
     document.getElementById("roEmpty").style.display="none";
     document.getElementById("roBody").style.display="block";
-    document.getElementById("roChip").style.background=QCOL[Q];
     document.getElementById("roName").textContent=feat.properties.MOKU;
-    document.getElementById("roIsl").textContent=feat.properties.ISLAND+" — "+QNAME[Q];
-    document.getElementById("roF").textContent=d.F||0;
-    var rtxt=(d.R||0); if(d.Rar){ rtxt += "  ("+d.Rar+" AR)"; }
-    document.getElementById("roR").innerHTML=rtxt;
-    document.getElementById("roStrat").textContent=QDESC[Q];
-    setActiveCell(Q);
+    if(state.mode==="export"){
+      var imp=state._imp[k]||0, exp=state._exp[k]||0, net=imp-exp;
+      document.getElementById("roChip").style.background=magnetColor(net);
+      document.getElementById("roIsl").textContent=feat.properties.ISLAND+" — "+magnetLabel(net,imp+exp);
+      document.getElementById("roFk").textContent="Imports (in)";
+      document.getElementById("roRk").textContent="Exports (out)";
+      document.getElementById("roF").textContent=imp;
+      document.getElementById("roR").innerHTML=exp;
+      document.getElementById("roStrat").textContent=magnetDesc(net,imp,exp);
+      setActiveCell(null);
+    } else {
+      var Q=quad(d.F,d.R);
+      document.getElementById("roChip").style.background=QCOL[Q];
+      document.getElementById("roIsl").textContent=feat.properties.ISLAND+" — "+QNAME[Q];
+      document.getElementById("roFk").textContent="Fish here";
+      document.getElementById("roRk").textContent="Want restoration";
+      document.getElementById("roF").textContent=d.F||0;
+      var rtxt=(d.R||0); if(d.Rar){ rtxt += "  ("+d.Rar+" AR)"; }
+      document.getElementById("roR").innerHTML=rtxt;
+      document.getElementById("roStrat").textContent=QDESC[Q];
+      setActiveCell(Q);
+    }
   }
   function hideReadout(){
     document.getElementById("roEmpty").style.display="block";
@@ -453,13 +648,14 @@
     document.querySelectorAll(".cell").forEach(function(c){ c.classList.toggle("active", Q && c.getAttribute("data-q")===Q); });
   }
 
+  // ---------- legend / captions ----------
   function refreshLegend(){
     var counts={hh:0,hl:0,lh:0,ll:0,nodata:0};
     (state.mokuGeo.features||[]).forEach(function(f){
       var d=state.byKey[norm(f.properties.MO_IS)]||{F:0,R:0}; counts[quad(d.F,d.R)]++;
     });
     ["hh","hl","lh","ll"].forEach(function(qk){ var el=document.querySelector('[data-ct="'+qk+'"]'); if(el) el.textContent=counts[qk]; });
-    var fT = state.medF===Infinity?"—":("≥"+fmt(state.medF)); 
+    var fT = state.medF===Infinity?"—":("≥"+fmt(state.medF));
     var rT = state.medR===Infinity?"—":("≥"+fmt(state.medR));
     document.getElementById("thrLo").textContent = "median split";
     document.getElementById("thrHi").textContent = "high: use "+fT+" · demand "+rT;
@@ -468,11 +664,40 @@
   }
   function fmt(x){ return (x%1===0)? x : x.toFixed(1); }
 
+  function updateHeadline(){
+    var el=document.getElementById("headline"); if(!el) return;
+    el.innerHTML='<span class="hl-n">'+state._exportPct+'%</span> of demand is <b>exported</b> — fishers named a different moku for restoration than where they fish ('+state._exportedC+' of '+state._bothC+').';
+  }
+  function updateCaption(){
+    var el=document.getElementById("viewcap"); if(!el) return;
+    var setL = state.set==="ar" ? "AR believers" : "Everyone";
+    var filMap = {all:"all gear",spear:"spearfishers",freq:"frequent fishers",comm:"commercial/mixed"};
+    var base = setL+" · "+(filMap[state.filter]||"");
+    if(state.mode==="export"){
+      el.innerHTML = state.focus
+        ? "<b>Exported demand</b> · focus: "+esc(nmOf(state.focus))+" &nbsp;·&nbsp; "+base
+        : "<b>Exported demand</b> · net magnet map — click a moku &nbsp;·&nbsp; "+base;
+    } else {
+      el.innerHTML = "<b>Quadrant map</b> · use × restoration demand &nbsp;·&nbsp; "+base;
+    }
+  }
+  function refreshView(){
+    var exp = state.mode==="export";
+    document.getElementById("platePanel").style.display = exp?"none":"";
+    document.getElementById("exportPanel").style.display = exp?"":"none";
+    if(state.focus && !((state._imp[state.focus]||0)+(state._exp[state.focus]||0))) state.focus=null;
+    updateHeadline(); updateCaption(); renderFlowPanel();
+  }
+
   // ---------- recompute pipeline ----------
-  function rerun(){ compute(); if(state.layer){ draw(); } refreshLegend(); }
+  function rerun(){ compute(); if(state.layer){ draw(); } refreshLegend(); refreshView(); }
 
   // ---------- controls ----------
   function wire(){
+    try{ if(localStorage.getItem("rhpIntroDismissed")){ var ie0=document.getElementById("intro"); if(ie0) ie0.style.display="none"; } }catch(e){}
+    document.getElementById("helpBtn").addEventListener("click",function(){ var ie=document.getElementById("intro"); if(ie) ie.style.display=""; });
+    document.getElementById("introX").addEventListener("click",function(){ var ie=document.getElementById("intro"); if(ie) ie.style.display="none"; try{localStorage.setItem("rhpIntroDismissed","1");}catch(e){} });
+
     document.getElementById("segSet").addEventListener("click",function(e){
       var b=e.target.closest("button"); if(!b) return;
       state.set=b.getAttribute("data-set");
@@ -480,10 +705,18 @@
       rerun();
     });
     document.getElementById("selFilter").addEventListener("change",function(){ state.filter=this.value; rerun(); });
-    document.getElementById("chkFlows").addEventListener("change",function(){ state.flows=this.checked; drawFlows(); });
-    // hovering a legend cell highlights matching moku on the map
+    document.getElementById("segMode").addEventListener("click",function(e){
+      var b=e.target.closest("button"); if(!b) return;
+      var m=b.getAttribute("data-mode"); if(m===state.mode) return;
+      state.mode=m; state.focus=null;
+      this.querySelectorAll("button").forEach(function(x){x.setAttribute("aria-pressed", x===b);});
+      restyle(); drawFocus(); refreshView();
+    });
+
+    // hovering a legend cell highlights matching moku on the map (quad mode)
     document.querySelectorAll(".cell").forEach(function(c){
       c.addEventListener("mouseenter",function(){
+        if(state.mode!=="quad") return;
         var Q=c.getAttribute("data-q"); setActiveCell(Q);
         if(!state.layer) return;
         state.layer.eachLayer(function(l){
@@ -491,8 +724,11 @@
           if(quad(d.F,d.R)===Q) l.setStyle({weight:2.2,color:"#ffffff"}); else l.setStyle({weight:0.7,color:"#0b2129"});
         });
       });
-      c.addEventListener("mouseleave",function(){ setActiveCell(null); if(state.layer) state.layer.eachLayer(function(l){state.layer.resetStyle(l);}); });
+      c.addEventListener("mouseleave",function(){ if(state.mode!=="quad") return; setActiveCell(null); if(state.layer) state.layer.eachLayer(function(l){ l.setStyle(styleFor(l.feature)); }); });
     });
+
+    // delegated clear-focus button (rendered inside the flow panel)
+    document.getElementById("sankeyWrap").addEventListener("click",function(e){ if(e.target && e.target.id==="clrFocus"){ clearFocus(); } });
   }
 
   // ---------- boot ----------
@@ -505,7 +741,7 @@
   initMap(); wire();
   load().then(function(){
     if(!state.mokuGeo.features.length) throw new Error("Moku layer returned no polygons.");
-    compute(); draw(); refreshLegend();
+    compute(); draw(); refreshLegend(); refreshView();
     document.getElementById("status").style.display="none";
   }).catch(function(err){ fail(String(err.message||err)); });
 
